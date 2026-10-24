@@ -1,10 +1,11 @@
 #ifndef GIRIGARA_EVENT_EVENT_H
 #define GIRIGARA_EVENT_EVENT_H
 
+// 基礎事件類別
 class Event {
 public:
     virtual ~Event() = default;
-    bool isHandled = false; // 是否已被消耗（阻止繼續廣播）
+    mutable bool isHandled = false; // 是否已被消耗（阻止繼續向下派發）
 };
 
 // 鍵盤基礎事件
@@ -33,10 +34,21 @@ public:
     : KeyEvent(key, scancode, 0 /* GLFW_RELEASE */, mods) {}
 };
 
+// 字元/文字輸入事件（供 UI 文字框、主控台輸入中英文字元）
+class CharInputEvent : public Event {
+public:
+    explicit CharInputEvent(unsigned int codepoint)
+    : codepoint(codepoint) {}
+
+    unsigned int codepoint;
+};
+
 // 滑鼠移動事件
 class MouseMovedEvent : public Event {
 public:
-    MouseMovedEvent(double x, double y) : x(x), y(y) {}
+    MouseMovedEvent(double x, double y)
+    : x(x), y(y) {}
+
     double x;
     double y;
 };
@@ -46,6 +58,7 @@ class MouseButtonEvent : public Event {
 public:
     MouseButtonEvent(int button, int action, int mods, double x, double y)
     : button(button), action(action), mods(mods), x(x), y(y) {}
+
     int button;
     int action;
     int mods;
@@ -56,8 +69,30 @@ public:
 // 視窗聚焦事件
 class WindowFocusEvent : public Event {
 public:
-    WindowFocusEvent(bool focused) : focused(focused) {}
+    explicit WindowFocusEvent(bool focused)
+    : focused(focused) {}
+
     bool focused;
+};
+
+// 滑鼠滾輪事件
+class MouseScrolledEvent : public Event {
+public:
+    MouseScrolledEvent(double xoffset, double yoffset)
+    : xoffset(xoffset), yoffset(yoffset) {}
+
+    double xoffset;
+    double yoffset;
+};
+
+// 視窗緩衝區/大小改變事件
+class WindowResizeEvent : public Event {
+public:
+    WindowResizeEvent(int width, int height)
+    : width(width), height(height) {}
+
+    int width;
+    int height;
 };
 
 #endif // GIRIGARA_EVENT_EVENT_H

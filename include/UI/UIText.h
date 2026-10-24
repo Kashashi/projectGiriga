@@ -2,7 +2,7 @@
 #define GIRIGARA_UI_UI_TEXT_H
 
 #include <UI/UIElement.h>
-#include <FontLoader/TextTexture.h>
+#include <Font/FontLoader.h>
 #include <memory>
 #include <string>
 

@@ -38,14 +38,18 @@ private:
     void onCursorPos(double xpos, double ypos);
     void onMouseButton(int button, int action, int mods);
     void onKey(int key, int scancode, int action, int mods);
+    void onChar(unsigned int codepoint); // ★ 新增：字元輸入成員函式
     void onWindowFocus(int focused);
     void onFramebufferSize(int width, int height);
 
     static void staticCursorPosCallback(GLFWwindow* window, double xpos, double ypos);
     static void staticMouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
     static void staticKeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
+    static void staticCharCallback(GLFWwindow* window, unsigned int codepoint); // ★ 新增：GLFW 靜態字元回調
     static void staticWindowFocusCallback(GLFWwindow* window, int focused);
     static void staticFramebufferSizeCallback(GLFWwindow* window, int width, int height);
+    void onScroll(double xoffset, double yoffset);
+    static void staticScrollCallback(GLFWwindow* window, double xoffset, double yoffset);
 };
 
 #endif // GIRIGARA_WINDOW_WINDOW_MANAGER_H

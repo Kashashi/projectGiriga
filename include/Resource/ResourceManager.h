@@ -8,7 +8,7 @@
 #include <filesystem>
 
 #include <Shader/Shader.h>
-#include <FontLoader/TextTexture.h>
+#include <Font/FontLoader.h>
 #include <Resource/ScriptResource.h>
 
 class ResourceManager {

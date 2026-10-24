@@ -3,6 +3,8 @@
 #include <UI/UIElement.h>
 #include <UI/UIRegistry.h>
 #include <UI/UIWindow.h>
+#include <System/ConsoleSystem.h>
+
 #include <iostream>
 
 extern "C" {
@@ -37,7 +39,9 @@ namespace {
     // 3. 輸出引擎日誌: EngineLog("訊息")
     int lua_EngineLog(lua_State* L) {
         const char* msg = luaL_checkstring(L, 1);
-        std::cout << "[Lua] " << (msg ? msg : "") << "\n";
+        if (msg) {
+            ConsoleSystem::getInstance().log(std::string("[Lua] ") + msg);
+        }
         return 0;
     }
 
