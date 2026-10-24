@@ -1,0 +1,32 @@
+# 編譯輸出與發布目錄
+build/
+bin/
+out/
+
+# 二進位與打包產物（防止直接在根目錄編譯或打包時污染）
+*.o
+*.a
+*.so
+*.tar.gz
+*.zip
+game_window
+
+# 系統當機傾印與除錯檔 (包含剛剛發生的 coredump)
+core
+core.*
+*.log
+*.stackdump
+
+# KDevelop / Kate 專案與編輯器暫存
+.kdev4/
+*.kdev4
+.*.kate-swp
+*~
+*.swp
+*.swo
+
+# 其他常見工具與目錄
+.cache/
+compile_commands.json
+.directory
+.DS_Store
