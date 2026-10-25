@@ -9,7 +9,7 @@ LDFLAGS = -lglfw -lGL -ldl -llua -lpthread $(shell pkg-config --libs freetype2)
 
 BUILD_DIR = build
 ASSETS_DIR = assets
-TARGET = $(BUILD_DIR)/game_window
+TARGET = $(BUILD_DIR)/projectGIRIGARA
 PACKAGE_LINUX = $(BUILD_DIR)/ProjectGirigara_linux.tar.gz
 
 # ==========================================
@@ -42,7 +42,7 @@ WIN_LDFLAGS  = -L$(WIN_LIB_DIR)/lib -L$(WIN_LUA_BUILD_DIR) -L$(WIN_PREFIX)/lib \
                -static-libgcc -static-libstdc++ -static
 
 WIN_BUILD_DIR = $(BUILD_DIR)/win64
-WIN_TARGET = $(WIN_BUILD_DIR)/game_window.exe
+WIN_TARGET = $(WIN_BUILD_DIR)/projectGIRIGARA.exe
 PACKAGE_WIN = $(BUILD_DIR)/ProjectGirigara_win64.zip
 
 # ==========================================
@@ -63,7 +63,7 @@ WIN_OBJS = $(patsubst src/%.cpp, $(WIN_BUILD_DIR)/%.o, $(filter %.cpp, $(SRC))) 
            $(patsubst src/%.c, $(WIN_BUILD_DIR)/%.o, $(filter %.c, $(SRC)))
 
 # 預設建置：Linux 與 Windows 同時編譯打包
-all: linux win64
+all: linux win64 rpm flatpak
 
 # ==========================================
 # Linux 建置流程
@@ -91,7 +91,7 @@ clean_linux_objs:
 
 package_linux: $(TARGET) copy_assets_linux
 	@echo "==> 打包 Linux 發布包至 $(PACKAGE_LINUX) ..."
-	@tar -czf $(PACKAGE_LINUX) -C $(BUILD_DIR) game_window $(ASSETS_DIR)
+	@tar -czf $(PACKAGE_LINUX) -C $(BUILD_DIR) $(notdir $(TARGET)) $(ASSETS_DIR)
 
 # ==========================================
 # Windows 交叉編譯流程
@@ -139,11 +139,46 @@ package_win: $(WIN_TARGET) copy_assets_win
 	@cd $(WIN_BUILD_DIR) && zip -rq ../../$(PACKAGE_WIN) .
 	@echo "==> Windows x86_64 發布包打包完成！"
 
+
+# 版本號與前綴
+VERSION = 0.1.0
+
+# ==========================================
+# RPM 打包目標
+# ==========================================
+rpm:
+	@mkdir -p ~/rpmbuild/SOURCES ~/rpmbuild/SPECS
+	@git archive --format=tar.gz --prefix=ProjectGirigara-$(VERSION)/ -o ~/rpmbuild/SOURCES/ProjectGirigara-$(VERSION).tar.gz HEAD
+	@cp ProjectGirigara.spec ~/rpmbuild/SPECS/
+	@rpmbuild -ba ~/rpmbuild/SPECS/ProjectGirigara.spec
+
+FLATPAK_ID = com.hahenru.girigara
+FLATPAK_MANIFEST = $(FLATPAK_ID).yaml
+FLATPAK_BUILD_DIR = build-flatpak
+FLATPAK_REPO = repo
+FLATPAK_BUNDLE = $(BUILD_DIR)/$(FLATPAK_ID).flatpak
+
+# ==========================================
+# Flatpak 打包目標
+# ==========================================
+# 1. 本地編譯並直接安裝至使用者環境 (方便本機測試)
+flatpak-install:
+	@echo "==> 使用 flatpak-builder 編譯並安裝到本地..."
+	flatpak-builder --user --install --force-clean $(FLATPAK_BUILD_DIR) $(FLATPAK_MANIFEST)
+
+# 2. 編譯並輸出單一離線安裝包 (.flatpak bundle)
+flatpak: | $(BUILD_DIR)
+	@echo "==> 編譯 Flatpak 儲存庫..."
+	flatpak-builder --repo=$(FLATPAK_REPO) --force-clean $(FLATPAK_BUILD_DIR) $(FLATPAK_MANIFEST)
+	@echo "==> 匯出獨立安裝包至 $(FLATPAK_BUNDLE)..."
+	flatpak build-bundle $(FLATPAK_REPO) $(FLATPAK_BUNDLE) $(FLATPAK_ID)
+	@echo "==> Flatpak 打包完成！"
+
 # ==========================================
 # 清理規則
 # ==========================================
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(BUILD_DIR) $(BUILD_DIR) $(FLATPAK_BUILD_DIR) $(FLATPAK_REPO)
 
 .PHONY: all linux win64 copy_assets_linux clean_linux_objs package_linux \
-        copy_assets_win clean_win_objs package_win clean
+        copy_assets_win clean_win_objs package_win clean rpm flatpak flatpak-install
