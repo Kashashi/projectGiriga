@@ -2,6 +2,7 @@
 build/
 bin/
 out/
+build-flatpak/
 
 # 二進位與打包產物（防止直接在根目錄編譯或打包時污染）
 *.o
@@ -9,7 +10,8 @@ out/
 *.so
 *.tar.gz
 *.zip
-game_window
+projectGIRIGARA
+.flatpak-builder/
 
 # 系統當機傾印與除錯檔 (包含剛剛發生的 coredump)
 core
@@ -26,6 +28,7 @@ core.*
 *.swo
 
 # 其他常見工具與目錄
+repo
 .cache/
 compile_commands.json
 .directory
