@@ -17,34 +17,7 @@ finish-args:
   - --share=ipc
 
 modules:
-  # 1. 建置 Lua (若 Runtime 內沒有滿足需求的 Lua 版本，可作為獨立 module 編譯)
-  - name: lua
-    buildsystem: autotools
-    no-autogen: true
-    sources:
-      - type: archive
-        url: https://www.lua.org/ftp/lua-5.5.1.tar.gz
-        sha256: 1c4b4068d67061f2a2231ad2b5422e77acea1487ea9890f6320af614f4373dce
-    make-install-args:
-      - INSTALL_TOP=/app
-    build-commands:
-      - make linux-readline MYCFLAGS="-fPIC"
-      - make install INSTALL_TOP=/app
-
-  # 2. 建置 GLFW
-  - name: glfw
-    buildsystem: cmake-ninja
-    config-opts:
-      - -DBUILD_SHARED_LIBS=ON
-      - -DGLFW_BUILD_EXAMPLES=OFF
-      - -DGLFW_BUILD_TESTS=OFF
-      - -DGLFW_BUILD_DOCS=OFF
-    sources:
-      - type: archive
-        url: https://github.com/glfw/glfw/releases/download/3.4/glfw-3.4.tar.gz
-        sha256: a13b8656ae534cb358be859e95fa59b4c09d57fb02f8313a246835a6669910d5
-
-  # 3. 建置專案主程式
+  # 建置專案主程式
   - name: projectGIRIGARA
     buildsystem: simple
     build-commands:
