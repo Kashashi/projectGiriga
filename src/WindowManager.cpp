@@ -2,9 +2,10 @@
 #include <Event/Event.h>
 #include <stdexcept>
 #include <iostream>
+#include <System/LoggerSystem.h>
 
-WindowManager::WindowManager(int width, int height, const std::string& title, EventBus& eventBus)
-: m_width(width), m_height(height), m_eventBus(eventBus) {
+WindowManager::WindowManager(int width, int height, const std::string& title, EventBus& eventBus, LoggerSystem& logger)
+: m_width(width), m_height(height), m_eventBus(eventBus), m_logger(logger) {
 
     m_window = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
     if (!m_window) {
@@ -12,6 +13,7 @@ WindowManager::WindowManager(int width, int height, const std::string& title, Ev
     }
 
     glfwMakeContextCurrent(m_window);
+    m_logger.info("[WindowManager] 視窗建立成功");
 
     // 將 this 指針綁定至視窗使用者資料
     glfwSetWindowUserPointer(m_window, this);
@@ -24,6 +26,7 @@ WindowManager::WindowManager(int width, int height, const std::string& title, Ev
     glfwSetWindowFocusCallback(m_window, staticWindowFocusCallback);
     glfwSetFramebufferSizeCallback(m_window, staticFramebufferSizeCallback);
     glfwSetScrollCallback(m_window, staticScrollCallback);
+    m_logger.info("[WindowManager] GLFW callback function註冊完畢");
 }
 
 WindowManager::~WindowManager() {
@@ -56,13 +59,37 @@ void WindowManager::updateProjection(int width, int height) {
 // -------------------------------------------------------------
 
 void WindowManager::onCursorPos(double xpos, double ypos) {
-    m_eventBus.publish(MouseMovedEvent(xpos, ypos));
+    int winWidth, winHeight;
+    int fbWidth, fbHeight;
+    glfwGetWindowSize(m_window, &winWidth, &winHeight);
+    glfwGetFramebufferSize(m_window, &fbWidth, &fbHeight);
+
+    // 計算視窗邏輯像素與 Framebuffer 像素之間的縮放比例
+    double scaleX = (winWidth > 0) ? (static_cast<double>(fbWidth) / winWidth) : 1.0;
+    double scaleY = (winHeight > 0) ? (static_cast<double>(fbHeight) / winHeight) : 1.0;
+
+    double actualX = xpos * scaleX;
+    double actualY = ypos * scaleY;
+
+    m_eventBus.publish(MouseMovedEvent(actualX, actualY));
 }
 
 void WindowManager::onMouseButton(int button, int action, int mods) {
     double xpos, ypos;
     glfwGetCursorPos(m_window, &xpos, &ypos);
-    m_eventBus.publish(MouseButtonEvent(button, action, mods, xpos, ypos));
+
+    int winWidth, winHeight;
+    int fbWidth, fbHeight;
+    glfwGetWindowSize(m_window, &winWidth, &winHeight);
+    glfwGetFramebufferSize(m_window, &fbWidth, &fbHeight);
+
+    double scaleX = (winWidth > 0) ? (static_cast<double>(fbWidth) / winWidth) : 1.0;
+    double scaleY = (winHeight > 0) ? (static_cast<double>(fbHeight) / winHeight) : 1.0;
+
+    double actualX = xpos * scaleX;
+    double actualY = ypos * scaleY;
+
+    m_eventBus.publish(MouseButtonEvent(button, action, mods, actualX, actualY));
 }
 
 void WindowManager::onKey(int key, int scancode, int action, int mods) {
@@ -81,7 +108,6 @@ void WindowManager::onKey(int key, int scancode, int action, int mods) {
 }
 
 void WindowManager::onChar(unsigned int codepoint) {
-    // 發布字元輸入事件 (包含中文字 Unicode Codepoint)
     m_eventBus.publish(CharInputEvent(codepoint));
 }
 
@@ -96,6 +122,10 @@ void WindowManager::onFramebufferSize(int width, int height) {
 
     // ★ 發布視窗大小改變事件
     m_eventBus.publish(WindowResizeEvent(width, height));
+}
+
+void WindowManager::onScroll(double xoffset, double yoffset) {
+    m_eventBus.publish(MouseScrolledEvent(xoffset, yoffset));
 }
 
 // -------------------------------------------------------------
@@ -130,10 +160,6 @@ void WindowManager::staticWindowFocusCallback(GLFWwindow* window, int focused) {
 void WindowManager::staticFramebufferSizeCallback(GLFWwindow* window, int width, int height) {
     auto* self = static_cast<WindowManager*>(glfwGetWindowUserPointer(window));
     if (self) self->onFramebufferSize(width, height);
-}
-
-void WindowManager::onScroll(double xoffset, double yoffset) {
-    m_eventBus.publish(MouseScrolledEvent(xoffset, yoffset));
 }
 
 void WindowManager::staticScrollCallback(GLFWwindow* window, double xoffset, double yoffset) {

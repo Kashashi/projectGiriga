@@ -1,13 +1,14 @@
 #ifndef GIRIGARA_UI_UI_ELEMENT_H
 #define GIRIGARA_UI_UI_ELEMENT_H
 
+#include <Core/UUID.h>
+#include <Core/Identifiable.h>
 #include <Shader/Shader.h>
 #include <Script/LuaRef.h>
 #include <UI/UIRegistry.h>
 #include <string>
-#include <cstdint>
 
-class UIElement {
+class UIElement : public Core::Identifiable {
 public:
     virtual ~UIElement() {
         // 物件銷毀時自動脫離全域註冊表
@@ -19,14 +20,10 @@ public:
     UIElement(UIElement&&) noexcept = default;
     UIElement& operator=(UIElement&&) noexcept = default;
 
-    // UUID 與 Name 存取介面
-    uint64_t getUUID() const { return m_uuid; }
-    const std::string& getName() const { return m_name; }
-
-    void setName(const std::string& name) {
-        // 先解除舊名字，再綁定新名字
+    // 覆寫 setName 以同步更新 UIRegistry 的名稱映射
+    void setName(const std::string& name) override {
         UIRegistry::getInstance().unregisterElement(0, m_name);
-        m_name = name;
+        Identifiable::setName(name);
         UIRegistry::getInstance().registerElement(m_uuid, m_name, this);
     }
 
@@ -65,22 +62,17 @@ public:
     }
 
 protected:
-    UIElement()
-    : m_uuid(UIRegistry::getInstance().generateUUID()) {
+    UIElement() : Core::Identifiable() {
         UIRegistry::getInstance().registerElement(m_uuid, "", this);
     }
 
     UIElement(float x, float y, float width, float height, std::string name = "")
-    : m_x(x), m_y(y), m_width(width), m_height(height),
-    m_uuid(UIRegistry::getInstance().generateUUID()),
-    m_name(std::move(name)) {
+    : Core::Identifiable(std::move(name)),
+    m_x(x), m_y(y), m_width(width), m_height(height) {
         UIRegistry::getInstance().registerElement(m_uuid, m_name, this);
     }
 
     virtual void onUpdate(float dt);
-
-    uint64_t m_uuid = 0;
-    std::string m_name;
 
     float m_x = 0.0f;
     float m_y = 0.0f;

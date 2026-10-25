@@ -11,9 +11,11 @@
 #include <Font/FontLoader.h>
 #include <Resource/ScriptResource.h>
 
+class LoggerSystem;
+
 class ResourceManager {
 public:
-    ResourceManager() = default;
+    explicit ResourceManager(LoggerSystem& logger) : m_logger(logger) {}
     ~ResourceManager() = default;
 
     // 禁止拷貝，支援移動
@@ -51,6 +53,7 @@ private:
 
     // 依序搜尋候選路徑，回傳第一個存在的檔案路徑
     std::string resolvePath(const std::vector<std::string>& candidates) const;
+    LoggerSystem& m_logger;
 };
 
 #endif // GIRIGARA_RESOURCE_RESOURCE_MANAGER_H

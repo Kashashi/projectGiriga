@@ -3,15 +3,26 @@
 #include <UI/UIElement.h>
 #include <UI/UIRegistry.h>
 #include <UI/UIWindow.h>
-#include <System/ConsoleSystem.h>
+#include <System/LoggerSystem.h>
 
 #include <iostream>
 
 extern "C" {
+    #include <lua.h>
     #include <lauxlib.h>
 }
 
 namespace {
+    constexpr const char* LOGGER_REGISTRY_KEY = "GIRIGARA_LOGGER_INSTANCE";
+
+    LoggerSystem* getLoggerFromLua(lua_State* L) {
+        lua_pushstring(L, LOGGER_REGISTRY_KEY);
+        lua_gettable(L, LUA_REGISTRYINDEX);
+        auto* logger = static_cast<LoggerSystem*>(lua_touserdata(L, -1));
+        lua_pop(L, 1);
+        return logger;
+    }
+
     // 1. 綁定 Update 回調: BindUIUpdate(elementPtr, function(self, dt) ... end)
     int lua_BindUIUpdate(lua_State* L) {
         auto* element = static_cast<UIElement*>(lua_touserdata(L, 1));
@@ -40,7 +51,12 @@ namespace {
     int lua_EngineLog(lua_State* L) {
         const char* msg = luaL_checkstring(L, 1);
         if (msg) {
-            ConsoleSystem::getInstance().log(std::string("[Lua] ") + msg);
+            LoggerSystem* logger = getLoggerFromLua(L);
+            if (logger) {
+                logger->log(std::string("[Lua] ") + msg);
+            } else {
+                std::cout << "[Lua] " << msg << std::endl;
+            }
         }
         return 0;
     }
@@ -100,7 +116,8 @@ namespace {
         }
         return 0;
     }
-    // 1. 取得 X 座標: local x = UI_GetX(elem)
+
+    // 9. 取得 X 座標: local x = UI_GetX(elem)
     static int lua_UI_GetX(lua_State* L) {
         auto* elem = static_cast<UIElement*>(lua_touserdata(L, 1));
         if (elem) {
@@ -111,7 +128,7 @@ namespace {
         return 1;
     }
 
-    // 2. 取得 Y 座標: local y = UI_GetY(elem)
+    // 10. 取得 Y 座標: local y = UI_GetY(elem)
     static int lua_UI_GetY(lua_State* L) {
         auto* elem = static_cast<UIElement*>(lua_touserdata(L, 1));
         if (elem) {
@@ -121,6 +138,8 @@ namespace {
         }
         return 1;
     }
+
+    // 11. 判斷是否正在拖曳視窗
     static int lua_UI_IsDragging(lua_State* L) {
         auto* win = dynamic_cast<UIWindow*>(static_cast<UIElement*>(lua_touserdata(L, 1)));
         if (win) {
@@ -133,8 +152,13 @@ namespace {
 }
 
 namespace ScriptBindings {
-    void registerAll(lua_State* L) {
+    void registerAll(lua_State* L, LoggerSystem& logger) {
         if (!L) return;
+
+        // ★ 將 logger 指針存入 Lua 全域註冊表
+        lua_pushstring(L, LOGGER_REGISTRY_KEY);
+        lua_pushlightuserdata(L, &logger);
+        lua_settable(L, LUA_REGISTRYINDEX);
 
         // 核心更新與輸出 API
         lua_register(L, "BindUIUpdate", lua_BindUIUpdate);

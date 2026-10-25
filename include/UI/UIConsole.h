@@ -3,6 +3,7 @@
 
 #include <UI/UIContainer.h>
 #include <UI/UIText.h>
+#include <System/LoggerSystem.h>
 #include <System/ConsoleSystem.h>
 #include <Font/FontLoader.h>
 #include <Event/EventBus.h>
@@ -74,12 +75,17 @@ namespace EncodingUtils {
 
 class UIConsole : public UIContainer {
 public:
-    UIConsole(float x, float y, float width, float height, FontLoader& font, EventBus& eventBus)
-    : UIContainer(x, y, width, height), m_font(font), m_eventBus(eventBus) {
+    UIConsole(float x, float y, float width, float height,
+              FontLoader& font, EventBus& eventBus,
+              ConsoleSystem& consoleSystem, LoggerSystem& logger)
+    : UIContainer(x, y, width, height),
+    m_font(font),
+    m_eventBus(eventBus),
+    m_consoleSystem(consoleSystem),
+    m_logger(logger) {
 
         setVisible(false);
 
-        // 建立輸入提示字元與當前輸入列
         m_inputPrompt = emplaceChild<UIText>(15.0f, m_height - m_inputAreaHeight + 5.0f, m_font, U"> ", m_fontSize);
         m_inputPrompt->setColor(0.3f, 1.0f, 0.4f, 1.0f);
 
@@ -90,11 +96,10 @@ public:
         bindEvents();
     }
 
-    // 視窗大小改變時呼叫
     void onResize(float newWidth, float newHeight) {
         m_width = newWidth;
         m_height = newHeight;
-        setSize(newWidth, newHeight); // 同步更新 UIContainer/UIElement 基礎屬性
+        setSize(newWidth, newHeight);
         recalculateLayout();
         refreshLogs();
     }
@@ -102,10 +107,22 @@ public:
     void update(float dt) override {
         UIContainer::update(dt);
 
-        if (ConsoleSystem::getInstance().isDirty()) {
+        if (m_logger.isDirty()) {
             refreshLogs();
-            ConsoleSystem::getInstance().clearDirty();
+            m_logger.clearDirty();
         }
+    }
+
+    bool handleMouseMove(double x, double y) override {
+        if (!isVisible()) return false;
+        UIContainer::handleMouseMove(x, y);
+        return true; // Console 開啟時，攔截滑鼠移動
+    }
+
+    bool handleMouseButton(int button, int action, int mods, double x, double y) override {
+        if (!isVisible()) return false;
+        UIContainer::handleMouseButton(button, action, mods, x, y);
+        return true; // Console 開啟時，攔截滑鼠點擊
     }
 
 private:
@@ -115,7 +132,6 @@ private:
             m_fontSize = newSize;
             m_lineHeight = static_cast<float>(m_fontSize) * 1.35f;
 
-            // 更新輸入列字型大小
             m_inputPrompt->setFontSize(m_fontSize);
             m_inputDisplay->setFontSize(m_fontSize);
 
@@ -124,80 +140,65 @@ private:
         }
     }
 
-    // 依目前的高度與字體大小，重新計算行數與元件佈局
     void recalculateLayout() {
-        // 更新輸入列位置 (固定貼齊底部)
         float promptY = m_height - m_inputAreaHeight + 5.0f;
         m_inputPrompt->setPosition(15.0f, promptY);
         m_inputDisplay->setPosition(15.0f + static_cast<float>(m_fontSize), promptY);
 
-        // 計算主日誌區域可顯示的總行數
-        float availableHeight = m_height - m_inputAreaHeight - 10.0f; // 扣除輸入列與頂部邊距
+        float availableHeight = m_height - m_inputAreaHeight - 10.0f;
         m_maxVisibleLines = std::max(1, static_cast<int>(availableHeight / m_lineHeight));
 
-        // 動態擴充或修整日誌 Label 物件池
         while (static_cast<int>(m_logLabels.size()) < m_maxVisibleLines) {
             auto* label = emplaceChild<UIText>(15.0f, 0.0f, m_font, U"", m_fontSize);
             label->setColor(0.88f, 0.88f, 0.88f, 1.0f);
             m_logLabels.push_back(label);
         }
 
-        // 重新定位每一行：由最底下（緊貼輸入框上方）一路往上排到頂部
         for (int i = 0; i < static_cast<int>(m_logLabels.size()); ++i) {
             if (i < m_maxVisibleLines) {
                 m_logLabels[i]->setVisible(true);
                 m_logLabels[i]->setFontSize(m_fontSize);
 
-                // i = 0 為最靠近輸入框的最新行，i 越大越往上
                 float lineY = (m_height - m_inputAreaHeight - 10.0f) - (static_cast<float>(i + 1) * m_lineHeight);
                 m_logLabels[i]->setPosition(15.0f, lineY);
             } else {
-                // 超過可視範圍的多餘行數隱藏（不刪除）
                 m_logLabels[i]->setVisible(false);
             }
         }
     }
 
     void bindEvents() {
-        // ★ 自動監聽視窗縮放事件，始終填滿視窗並貼齊最底端
         m_eventBus.subscribe<WindowResizeEvent>([this](WindowResizeEvent& e) {
             this->onResize(static_cast<float>(e.width), static_cast<float>(e.height));
         });
 
-        // 1. 攔截按鍵事件 (字體縮放、Enter、Backspace、ESC)
         m_eventBus.subscribePriority<KeyEvent>([this](KeyEvent& e) {
             if (!this->isVisible()) return;
 
-            // 放行波浪鍵切換
             if (e.key == GLFW_KEY_GRAVE_ACCENT) {
                 return;
             }
 
-            // ESC 關閉主控台
             if (e.key == GLFW_KEY_ESCAPE && e.action == GLFW_PRESS) {
                 this->setVisible(false);
                 e.isHandled = true;
                 return;
             }
 
-            // 攔截其他鍵盤操作
             e.isHandled = true;
 
             if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
                 bool ctrlPressed = (e.mods & GLFW_MOD_CONTROL);
 
-                // Ctrl + '+' / '=' 放大文字
                 if (ctrlPressed && (e.key == GLFW_KEY_EQUAL || e.key == GLFW_KEY_KP_ADD)) {
                     changeFontSize(2);
                     return;
                 }
-                // Ctrl + '-' 縮小文字
                 if (ctrlPressed && (e.key == GLFW_KEY_MINUS || e.key == GLFW_KEY_KP_SUBTRACT)) {
                     changeFontSize(-2);
                     return;
                 }
 
-                // PageUp / PageDown 快速翻頁滾動
                 if (e.key == GLFW_KEY_PAGE_UP) {
                     scrollLogs(m_maxVisibleLines / 2);
                     return;
@@ -210,11 +211,11 @@ private:
                 if (e.key == GLFW_KEY_ENTER) {
                     if (!m_currentInput.empty()) {
                         std::string cmd = EncodingUtils::utf32ToUtf8(m_currentInput);
-                        ConsoleSystem::getInstance().executeCommand(cmd);
+                        m_consoleSystem.executeCommand(cmd);
 
                         m_currentInput.clear();
                         m_inputDisplay->setText(U"");
-                        m_scrollOffset = 0; // 發布新指令後回到最新日誌
+                        m_scrollOffset = 0;
                         refreshLogs();
                     }
                 }
@@ -227,13 +228,11 @@ private:
             }
         });
 
-        // 2. 攔截滑鼠滾輪 (放大/縮小字體 或 捲動歷史日誌)
         m_eventBus.subscribePriority<MouseScrolledEvent>([this](MouseScrolledEvent& e) {
             if (!this->isVisible()) return;
 
             e.isHandled = true;
 
-            // 透過 GLFW 查詢當前 Control 鍵是否按下
             GLFWwindow* curWin = glfwGetCurrentContext();
             bool ctrlPressed = false;
             if (curWin) {
@@ -242,19 +241,16 @@ private:
             }
 
             if (ctrlPressed) {
-                // Ctrl + 滾輪：縮放字體大小
                 if (e.yoffset > 0) {
                     changeFontSize(2);
                 } else if (e.yoffset < 0) {
                     changeFontSize(-2);
                 }
             } else {
-                // 普通滾輪：上下滾動歷史紀錄 (yoffset > 0 往上看舊日誌)
-                scrollLogs(static_cast<int>(e.yoffset * 3)); // 乘上速度因子
+                scrollLogs(static_cast<int>(e.yoffset * 3));
             }
         });
 
-        // 3. 攔截字元輸入
         m_eventBus.subscribePriority<CharInputEvent>([this](CharInputEvent& e) {
             if (!this->isVisible()) return;
             if (e.codepoint == '`' || e.codepoint == '~') return;
@@ -263,22 +259,19 @@ private:
             m_currentInput += static_cast<char32_t>(e.codepoint);
             m_inputDisplay->setText(m_currentInput);
         });
-
-        // 4. 攔截滑鼠點擊與移動，避免穿透
-        m_eventBus.subscribePriority<MouseButtonEvent>([this](MouseButtonEvent& e) {
-            if (this->isVisible()) e.isHandled = true;
-        });
-
-            m_eventBus.subscribePriority<MouseMovedEvent>([this](MouseMovedEvent& e) {
-                if (this->isVisible()) e.isHandled = true;
-            });
+        // 務必註解或刪除這兩段，避免全域攔截滑鼠：
+        // m_eventBus.subscribePriority<MouseButtonEvent>([this](MouseButtonEvent& e) {
+        //     if (this->isVisible()) e.isHandled = true;
+        // });
+        //
+        // m_eventBus.subscribePriority<MouseMovedEvent>([this](MouseMovedEvent& e) {
+        //     if (this->isVisible()) e.isHandled = true;
+        // });
     }
 
     void scrollLogs(int delta) {
-        const auto& logs = ConsoleSystem::getInstance().getLogs();
+        const auto& logs = m_logger.getLogs();
         int totalLogs = static_cast<int>(logs.size());
-
-        // 最大可向上滾動距離
         int maxOffset = std::max(0, totalLogs - m_maxVisibleLines);
 
         m_scrollOffset = std::clamp(m_scrollOffset + delta, 0, maxOffset);
@@ -286,10 +279,9 @@ private:
     }
 
     void refreshLogs() {
-        const auto& logs = ConsoleSystem::getInstance().getLogs();
+        const auto& logs = m_logger.getLogs();
         int totalLogs = static_cast<int>(logs.size());
 
-        // 從最底端（最新 - m_scrollOffset）開始向上繪製
         for (int i = 0; i < m_maxVisibleLines; ++i) {
             if (i >= static_cast<int>(m_logLabels.size())) break;
 
@@ -305,12 +297,14 @@ private:
 
     FontLoader& m_font;
     EventBus& m_eventBus;
+    ConsoleSystem& m_consoleSystem;
+    LoggerSystem& m_logger;
 
     int m_fontSize{18};
     float m_lineHeight{24.0f};
     float m_inputAreaHeight{35.0f};
     int m_maxVisibleLines{15};
-    int m_scrollOffset{0}; // 0 代表最底端的最新紀錄，> 0 代表向上翻閱舊日誌
+    int m_scrollOffset{0};
 
     std::u32string m_currentInput;
     UIText* m_inputPrompt{nullptr};

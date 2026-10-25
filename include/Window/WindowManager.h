@@ -8,9 +8,11 @@
 #include <Shader/Shader.h>
 #include <Event/EventBus.h>
 
+class LoggerSystem;
+
 class WindowManager {
 public:
-    WindowManager(int width, int height, const std::string& title, EventBus& eventBus);
+    WindowManager(int width, int height, const std::string& title, EventBus& eventBus, LoggerSystem& logger);
     ~WindowManager();
 
     WindowManager(const WindowManager&) = delete;
@@ -50,6 +52,7 @@ private:
     static void staticFramebufferSizeCallback(GLFWwindow* window, int width, int height);
     void onScroll(double xoffset, double yoffset);
     static void staticScrollCallback(GLFWwindow* window, double xoffset, double yoffset);
+    LoggerSystem& m_logger;
 };
 
 #endif // GIRIGARA_WINDOW_WINDOW_MANAGER_H

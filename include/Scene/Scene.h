@@ -7,11 +7,12 @@
 #include <UI/UIContainer.h>
 
 class SceneManager; // 前置宣告
+class LoggerSystem;
 
 class Scene {
 public:
-    Scene(SceneManager& manager, EventBus& bus, ResourceManager& resources)
-    : m_manager(manager), m_bus(bus), m_resources(resources) {}
+    Scene(SceneManager& manager, EventBus& bus, ResourceManager& resources, LoggerSystem& logger)
+    : m_manager(manager), m_bus(bus), m_resources(resources), m_logger(logger) {}
     virtual ~Scene() = default;
 
     Scene(const Scene&) = delete;
@@ -34,6 +35,7 @@ protected:
     EventBus& m_bus;
     ResourceManager& m_resources;
     UIContainer m_uiRoot; // 每個場景自帶一個局部 UI 根節點
+    LoggerSystem& m_logger;
 };
 
 #endif // GIRIGARA_SCENE_SCENE_H

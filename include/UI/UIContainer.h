@@ -26,9 +26,12 @@ public:
     void setFocusedElement(UIElement* element);
     UIElement* getFocusedElement() const { return m_focusedElement; }
 
+    // ★ 設定是否開啟穿透模式 (預設為 false，即非穿透實體容器)
+    void setPassThrough(bool passThrough) { m_passThrough = passThrough; }
+    bool isPassThrough() const { return m_passThrough; }
+
     // 核心補齊：遞迴更新子節點
     void update(float dt) override;
-
     void render(const Shader& shader) override;
     bool handleMouseMove(double x, double y) override;
     bool handleMouseButton(int button, int action, int mods, double x, double y) override;
@@ -37,6 +40,7 @@ public:
 private:
     std::vector<std::unique_ptr<UIElement>> m_children;
     UIElement* m_focusedElement = nullptr;
+    bool m_passThrough = false; // ★ 是否讓未被子元件處理的事件穿透
 };
 
 #endif // GIRIGARA_UI_UI_CONTAINER_H
