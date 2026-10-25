@@ -86,10 +86,14 @@ public:
 
         setVisible(false);
 
-        m_inputPrompt = emplaceChild<UIText>(15.0f, m_height - m_inputAreaHeight + 5.0f, m_font, U"> ", m_fontSize);
+        // 依初始字體大小設定底部區域高度
+        updateDynamicMetrics();
+
+        float promptY = m_height - m_inputAreaHeight;
+        m_inputPrompt = emplaceChild<UIText>(15.0f, promptY, m_font, U"> ", m_fontSize);
         m_inputPrompt->setColor(0.3f, 1.0f, 0.4f, 1.0f);
 
-        m_inputDisplay = emplaceChild<UIText>(35.0f, m_height - m_inputAreaHeight + 5.0f, m_font, U"", m_fontSize);
+        m_inputDisplay = emplaceChild<UIText>(15.0f + static_cast<float>(m_fontSize) * 1.5f, promptY, m_font, U"", m_fontSize);
         m_inputDisplay->setColor(1.0f, 1.0f, 1.0f, 1.0f);
 
         recalculateLayout();
@@ -126,11 +130,18 @@ public:
     }
 
 private:
+    void updateDynamicMetrics() {
+        m_lineHeight = static_cast<float>(m_fontSize) * 1.35f;
+        // 動態底部間距：隨著字體放大，拉開底邊保護緩衝，確保字型 Descent 完全落在視窗內
+        m_bottomPadding = static_cast<float>(m_fontSize) * 0.35f + 8.0f;
+        m_inputAreaHeight = static_cast<float>(m_fontSize) + m_bottomPadding;
+    }
+
     void changeFontSize(int delta) {
         int newSize = std::clamp(m_fontSize + delta, 12, 48);
         if (newSize != m_fontSize) {
             m_fontSize = newSize;
-            m_lineHeight = static_cast<float>(m_fontSize) * 1.35f;
+            updateDynamicMetrics();
 
             m_inputPrompt->setFontSize(m_fontSize);
             m_inputDisplay->setFontSize(m_fontSize);
@@ -141,11 +152,17 @@ private:
     }
 
     void recalculateLayout() {
-        float promptY = m_height - m_inputAreaHeight + 5.0f;
-        m_inputPrompt->setPosition(15.0f, promptY);
-        m_inputDisplay->setPosition(15.0f + static_cast<float>(m_fontSize), promptY);
+        updateDynamicMetrics();
 
-        float availableHeight = m_height - m_inputAreaHeight - 10.0f;
+        // 貼齊視窗底部的抬高座標 (保留 bottomPadding)
+        float promptY = m_height - m_inputAreaHeight;
+        float promptWidth = static_cast<float>(m_fontSize) * 1.5f;
+
+        m_inputPrompt->setPosition(15.0f, promptY);
+        m_inputDisplay->setPosition(15.0f + promptWidth, promptY);
+
+        // 可用日誌高度扣除動態輸入列與上方邊距
+        float availableHeight = m_height - m_inputAreaHeight - 15.0f;
         m_maxVisibleLines = std::max(1, static_cast<int>(availableHeight / m_lineHeight));
 
         while (static_cast<int>(m_logLabels.size()) < m_maxVisibleLines) {
@@ -154,6 +171,7 @@ private:
             m_logLabels.push_back(label);
         }
 
+        // 重新由下往上排版
         for (int i = 0; i < static_cast<int>(m_logLabels.size()); ++i) {
             if (i < m_maxVisibleLines) {
                 m_logLabels[i]->setVisible(true);
@@ -175,25 +193,37 @@ private:
         m_eventBus.subscribePriority<KeyEvent>([this](KeyEvent& e) {
             if (!this->isVisible()) return;
 
+            // 1. 放行 Console 開關鍵 (Grave Accent / Tilde)
             if (e.key == GLFW_KEY_GRAVE_ACCENT) {
                 return;
             }
 
+            // 2. ★ 關鍵修正：放行所有「Ctrl + Shift + 任意鍵」的超級全局組合鍵
+            // 讓全局 UI 組件（如 UIWindow 或其他 Manager）能夠直接接收到！
+            bool isSuperGlobalCombo = (e.mods & GLFW_MOD_CONTROL) && (e.mods & GLFW_MOD_SHIFT);
+            if (isSuperGlobalCombo) {
+                return; // 不標記 isHandled，放行給系統與其他 UI
+            }
+
+            // 3. ESC 直接關閉 Console
             if (e.key == GLFW_KEY_ESCAPE && e.action == GLFW_PRESS) {
                 this->setVisible(false);
                 e.isHandled = true;
                 return;
             }
 
+            // 攔截其餘一般輸入操作
             e.isHandled = true;
 
             if (e.action == GLFW_PRESS || e.action == GLFW_REPEAT) {
                 bool ctrlPressed = (e.mods & GLFW_MOD_CONTROL);
 
+                // 單純 Ctrl + '+' / '=' 放大
                 if (ctrlPressed && (e.key == GLFW_KEY_EQUAL || e.key == GLFW_KEY_KP_ADD)) {
                     changeFontSize(2);
                     return;
                 }
+                // 單純 Ctrl + '-' 縮小
                 if (ctrlPressed && (e.key == GLFW_KEY_MINUS || e.key == GLFW_KEY_KP_SUBTRACT)) {
                     changeFontSize(-2);
                     return;
@@ -259,14 +289,6 @@ private:
             m_currentInput += static_cast<char32_t>(e.codepoint);
             m_inputDisplay->setText(m_currentInput);
         });
-        // 務必註解或刪除這兩段，避免全域攔截滑鼠：
-        // m_eventBus.subscribePriority<MouseButtonEvent>([this](MouseButtonEvent& e) {
-        //     if (this->isVisible()) e.isHandled = true;
-        // });
-        //
-        // m_eventBus.subscribePriority<MouseMovedEvent>([this](MouseMovedEvent& e) {
-        //     if (this->isVisible()) e.isHandled = true;
-        // });
     }
 
     void scrollLogs(int delta) {
@@ -302,6 +324,7 @@ private:
 
     int m_fontSize{18};
     float m_lineHeight{24.0f};
+    float m_bottomPadding{14.0f};
     float m_inputAreaHeight{35.0f};
     int m_maxVisibleLines{15};
     int m_scrollOffset{0};

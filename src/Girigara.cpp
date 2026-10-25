@@ -43,7 +43,6 @@ void Girigara::initSubsystems() {
     ScriptBindings::registerAll(m_scriptEngine.getRawState(), m_logger);
     m_console.setScriptEngine(&m_scriptEngine);
 
-    // 注入 Logger 到 SceneManager
     m_sceneManager = std::make_unique<SceneManager>(m_eventBus, m_resources, m_logger);
     m_quadMesh = std::make_unique<QuadMesh>();
 }
@@ -66,7 +65,7 @@ void Girigara::setupUI() {
     );
     m_inGameConsole->setName("InGameConsole");
 
-    // 2. ★ 補上建立 Lua 飄浮視窗 (UIWindow)
+    // 2. 建立 Lua 飄浮視窗
     auto titleLabel = std::make_unique<UIText>(0.0f, 0.0f, *m_defaultFont, U"全域主控台 (Lua 驅動)", 20);
     titleLabel->setColor(1.0f, 0.85f, 0.3f, 1.0f);
 
@@ -83,7 +82,6 @@ void Girigara::setupUI() {
     );
     statusText->setColor(0.2f, 0.9f, 0.4f, 1.0f);
 
-    // 3. 嘗試載入並執行 console_float.lua
     try {
         m_resources.loadScript("console_float", std::vector<std::string>{
             "./assets/scripts/console_float.lua",
@@ -112,12 +110,12 @@ void Girigara::setupShortcuts() {
         }
     );
 
-    // Ctrl + Shift + U: 切換 Lua 飄浮視窗
+    // Ctrl + Shift + U: 超級全局快捷鍵 (在 Console 開啟時依然有效)
     m_keyboardSystem.registerShortcut(
         GLFW_KEY_U,
         GLFW_MOD_CONTROL | GLFW_MOD_SHIFT,
         [this, &globalUI]() {
-            if (!m_globalConsoleWindow) return; // ★ 加上指針檢查
+            if (!m_globalConsoleWindow) return;
             bool nextVisible = !m_globalConsoleWindow->isVisible();
             m_globalConsoleWindow->setVisible(nextVisible);
             if (nextVisible) {
@@ -136,22 +134,16 @@ void Girigara::run() {
         float dt = currentTime - lastTime;
         lastTime = currentTime;
 
-        // 1. 事件輪詢
         m_window->pollEvents();
-
-        // 2. 邏輯更新 (場景 + UI)
         m_sceneManager->update(dt);
 
-        // 3. 畫面清除
         glClearColor(0.12f, 0.12f, 0.14f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // 4. 繪製場景與 UI
         m_uiShader->use();
         glBindVertexArray(m_quadMesh->getVAO());
         m_sceneManager->render(*m_uiShader);
 
-        // 5. 緩衝區交換
         m_window->swapBuffers();
     }
 }
