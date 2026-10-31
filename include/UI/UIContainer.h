@@ -39,11 +39,15 @@ public:
     bool handleKey(int key, int scancode, int action, int mods) override;
     // ★ 取得子節點列表，供視窗縮放時遍歷校正
     const std::vector<std::unique_ptr<UIElement>>& getChildren() const { return m_children; }
+    void bringToFront(UIElement* element);
+
+protected:
+    std::vector<std::unique_ptr<UIElement>> m_children;
 
 private:
-    std::vector<std::unique_ptr<UIElement>> m_children;
     UIElement* m_focusedElement = nullptr;
     bool m_passThrough = false; // ★ 是否讓未被子元件處理的事件穿透
+    bool m_clipToBounds = false;
 };
 
 #endif // GIRIGARA_UI_UI_CONTAINER_H

@@ -47,6 +47,7 @@ public:
     bool isDragging() const { return m_isDragging; }
     // ★ 主動將視窗位置約束在螢幕可見區域內
     void clampPosition(float screenW, float screenH);
+    bool canBringToFront() const override { return true; }
 
 private:
     float m_titleBarHeight = 35.0f;

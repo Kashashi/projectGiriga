@@ -1,5 +1,7 @@
 #include <UI/UIContainer.h>
+#include <UI/UIWindow.h>
 #include <algorithm>
+#include <GLFW/glfw3.h>
 
 void UIContainer::addChild(std::unique_ptr<UIElement> child) {
     if (child) {
@@ -39,11 +41,28 @@ void UIContainer::update(float dt) {
 void UIContainer::render(const Shader& shader) {
     if (!isVisible()) return;
 
-    // 正向渲染：先畫底層，再畫頂層
+    bool clip = m_clipToBounds && (getWidth() > 0.0f && getHeight() > 0.0f);
+    if (clip) {
+        glEnable(GL_SCISSOR_TEST);
+        // 注意 OpenGL 視窗座標原點在左下角，需用視窗高度換算 Y
+        int winW, winH;
+        glfwGetFramebufferSize(glfwGetCurrentContext(), &winW, &winH);
+        float gx = getGlobalX();
+        float gy = getGlobalY();
+        float gw = getLocalWidth();
+        float gh = getLocalHeight();
+        glScissor(static_cast<GLint>(gx),
+                  static_cast<GLint>(winH - (gy + gh)),
+                  static_cast<GLsizei>(gw),
+                  static_cast<GLsizei>(gh));
+    }
+
     for (auto& child : m_children) {
-        if (child && child->isVisible()) {
-            child->render(shader);
-        }
+        if (child && child->isVisible()) child->render(shader);
+    }
+
+    if (clip) {
+        glDisable(GL_SCISSOR_TEST);
     }
 }
 
@@ -76,7 +95,14 @@ bool UIContainer::handleMouseButton(int button, int action, int mods, double x, 
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it) {
         if ((*it) && (*it)->isVisible()) {
             if ((*it)->handleMouseButton(button, action, mods, x, y)) {
-                setFocusedElement(it->get());
+                UIElement* clickedElement = it->get();
+                setFocusedElement(clickedElement);
+
+                // ★ 加在這裡：當滑鼠按下且子元件成功消耗事件時且該物件允許，將其提升至最頂層
+                if (action == GLFW_PRESS && clickedElement->canBringToFront()) {
+                    bringToFront(clickedElement);
+                }
+
                 return true; // 子元件消耗了事件
             }
         }
@@ -111,6 +137,17 @@ bool UIContainer::handleKey(int key, int scancode, int action, int mods) {
 
     // 鍵盤未被任何子節點處理，穿透模式下放行
     return !m_passThrough;
+}
+
+void UIContainer::bringToFront(UIElement* element) {
+    if (!element || m_children.empty()) return;
+    auto it = std::find_if(m_children.begin(), m_children.end(),
+                           [element](const auto& ptr) { return ptr.get() == element; });
+    if (it != m_children.end() && it != m_children.end() - 1) {
+        auto target = std::move(*it);
+        m_children.erase(it);
+        m_children.push_back(std::move(target));
+    }
 }
 
 

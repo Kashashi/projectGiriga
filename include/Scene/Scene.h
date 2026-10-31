@@ -36,7 +36,10 @@ public:
     // 生命週期勾子
     virtual void onEnter() = 0;
     virtual void onExit() = 0;
-    virtual void update(float dt) { (void)dt; }
+    // ★ 預設將幀時間傳給場景專屬的 Root UI 容器，驅動子元件與排版器更新
+    virtual void update(float dt) {
+        m_uiRoot.update(dt);
+    }
     virtual void render(const Shader& shader) {
         m_uiRoot.render(shader);
     }

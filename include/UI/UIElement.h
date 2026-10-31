@@ -81,6 +81,7 @@ public:
 
     // 命中測試
     virtual bool contains(double x, double y) const;
+    virtual bool canBringToFront() const { return false; }
 
 protected:
     UIElement();
