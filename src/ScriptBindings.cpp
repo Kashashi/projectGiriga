@@ -149,6 +149,35 @@ namespace {
         }
         return 1;
     }
+    // 1. 在場景建立按鈕: CreateButton(x, y, w, h, "按鈕標籤")
+    int lua_CreateButton(lua_State* L) {
+        float x = static_cast<float>(luaL_checknumber(L, 1));
+        float y = static_cast<float>(luaL_checknumber(L, 2));
+        float w = static_cast<float>(luaL_checknumber(L, 3));
+        float h = static_cast<float>(luaL_checknumber(L, 4));
+        const char* text = luaL_optstring(L, 5, "");
+
+        // 取得當前場景的 UI 根節點 (可藉由 Registry 或全域存取)
+        // 建立 UIButton 並自動掛入
+        // 回傳 lightuserdata 指向該 Button
+        return 1;
+    }
+
+    // 2. 切換場景: SwitchScene("assets/scripts/scenes/battle.lua")
+    int lua_SwitchScene(lua_State* L) {
+        const char* script = luaL_checkstring(L, 1);
+        // 透過 SceneManager 切換到新的 LuaScene(script)
+        return 0;
+    }
+    int lua_UI_SetPositionPercent(lua_State* L) {
+        auto* elem = static_cast<UIElement*>(lua_touserdata(L, 1));
+        float x = static_cast<float>(luaL_checknumber(L, 2));
+        float y = static_cast<float>(luaL_checknumber(L, 3));
+        if (elem) {
+            elem->setPositionPercent(x, y);
+        }
+        return 0;
+    }
 }
 
 namespace ScriptBindings {
@@ -174,5 +203,10 @@ namespace ScriptBindings {
         lua_register(L, "UI_GetX", lua_UI_GetX);
         lua_register(L, "UI_GetY", lua_UI_GetY);
         lua_register(L, "UI_IsDragging", lua_UI_IsDragging);
+        lua_register(L, "CreateButton", lua_CreateButton);
+        lua_register(L, "SetPositionPercent", lua_UI_SetPositionPercent);
+
+        // 控制場景相關 API
+        lua_register(L, "SwitchScene", lua_SwitchScene);
     }
 }

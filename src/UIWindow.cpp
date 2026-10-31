@@ -1,32 +1,52 @@
 #include <UI/UIWindow.h>
 #include <GLFW/glfw3.h>
+#include <algorithm>
 
-// 方式 1：字串構造
 UIWindow::UIWindow(float x, float y, float width, float height,
                    const FontLoader& font, const std::u32string& title,
                    unsigned int titleFontSize)
 : UIElement(x, y, width, height) {
-    m_titleText = std::make_unique<UIText>(x + 10.0f, y, font, title, titleFontSize);
+    // 1. 內容容器綁定：位置相對為 (0, 0)，尺寸同步視窗大小
+    m_container.setParent(this);
+    m_container.setPosition(0.0f, 0.0f);
+    m_container.setSize(width, height);
+
+    // 2. 標題文字持有相對座標 (Local: 10, yOffset)
+    m_titleText = std::make_unique<UIText>(10.0f, 0.0f, font, title, titleFontSize);
+    m_titleText->setParent(this);
+    float textY = (m_titleBarHeight - m_titleText->getHeight()) * 0.5f;
+    m_titleText->setPosition(10.0f, textY);
+
     initCloseButton();
-    updateChildrenPositions();
 }
 
-// 方式 2：直接移入構造好的 UIText
 UIWindow::UIWindow(float x, float y, float width, float height,
                    std::unique_ptr<UIText> titleText)
 : UIElement(x, y, width, height), m_titleText(std::move(titleText)) {
+    // 1. 內容容器綁定：位置相對為 (0, 0)，尺寸同步視窗大小
+    m_container.setParent(this);
+    m_container.setPosition(0.0f, 0.0f);
+    m_container.setSize(width, height);
+
+    if (m_titleText) {
+        m_titleText->setParent(this);
+        float textY = (m_titleBarHeight - m_titleText->getHeight()) * 0.5f;
+        m_titleText->setPosition(10.0f, textY);
+    }
     initCloseButton();
-    updateChildrenPositions();
 }
 
 void UIWindow::initCloseButton() {
     float btnSize = 20.0f;
     float btnMargin = (m_titleBarHeight - btnSize) * 0.5f;
+
+    // 關閉按鈕使用相對座標
     m_closeButton = std::make_unique<UIButton>(
-        m_x + m_width - btnSize - btnMargin,
-        m_y + btnMargin,
+        m_width - btnSize - btnMargin,
+        btnMargin,
         btnSize, btnSize
     );
+    m_closeButton->setParent(this);
     m_closeButton->setColors({
         {0.8f, 0.2f, 0.2f, 1.0f},
         {1.0f, 0.3f, 0.3f, 1.0f},
@@ -39,42 +59,23 @@ void UIWindow::initCloseButton() {
 
 void UIWindow::setTitle(std::unique_ptr<UIText> titleText) {
     m_titleText = std::move(titleText);
-    updateChildrenPositions();
+    if (m_titleText) {
+        m_titleText->setParent(this);
+        m_titleText->setPosition(10.0f, (m_titleBarHeight - m_titleText->getHeight()) * 0.5f);
+    }
 }
 
 void UIWindow::setPosition(float x, float y) {
     m_x = x;
     m_y = y;
-    updateChildrenPositions();
-}
-
-void UIWindow::updateChildrenPositions() {
-    if (m_titleText) {
-        float textY = m_y + (m_titleBarHeight - m_titleText->getHeight()) * 0.5f;
-        m_titleText->setPosition(m_x + 10.0f, textY);
-    }
-
-    if (m_closeButton) {
-        float btnSize = m_closeButton->getWidth();
-        float btnMargin = (m_titleBarHeight - btnSize) * 0.5f;
-        m_closeButton->setPosition(m_x + m_width - btnSize - btnMargin, m_y + btnMargin);
-    }
-
-    for (const auto& child : m_contentElements) {
-        if (child.element) {
-            child.element->setPosition(m_x + child.relX, m_y + child.relY);
-        }
-    }
 }
 
 bool UIWindow::isInsideTitleBar(double x, double y) const {
-    return (x >= m_x && x <= m_x + m_width &&
-    y >= m_y && y <= m_y + m_titleBarHeight);
+    float gx = getGlobalX();
+    float gy = getGlobalY();
+    return (x >= gx && x <= gx + m_width &&
+    y >= gy && y <= gy + m_titleBarHeight);
 }
-
-// -------------------------------------------------------------
-// 實作 UIElement 的虛擬介面
-// -------------------------------------------------------------
 
 void UIWindow::render(const Shader& shader) {
     if (!m_visible) return;
@@ -85,13 +86,16 @@ void UIWindow::render(const Shader& shader) {
 
     glProgramUniform1i(shader.getID(), LOC_IS_TEXT, 0);
 
+    float gx = getGlobalX();
+    float gy = getGlobalY();
+
     // 1. 繪製視窗本體 (Body)
     glProgramUniform4fv(shader.getID(), LOC_UI_COLOR, 1, m_bodyColor);
     float bodyModel[16] = {
         m_width, 0.0f,     0.0f, 0.0f,
         0.0f,    m_height, 0.0f, 0.0f,
         0.0f,    0.0f,     1.0f, 0.0f,
-        m_x,     m_y,      0.0f, 1.0f
+        gx,      gy,       0.0f, 1.0f
     };
     glProgramUniformMatrix4fv(shader.getID(), LOC_MODEL, 1, GL_FALSE, bodyModel);
     glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -102,7 +106,7 @@ void UIWindow::render(const Shader& shader) {
         m_width, 0.0f,             0.0f, 0.0f,
         0.0f,    m_titleBarHeight, 0.0f, 0.0f,
         0.0f,    0.0f,             1.0f, 0.0f,
-        m_x,     m_y,              0.0f, 1.0f
+        gx,      gy,               0.0f, 1.0f
     };
     glProgramUniformMatrix4fv(shader.getID(), LOC_MODEL, 1, GL_FALSE, titleModel);
     glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -119,22 +123,41 @@ void UIWindow::render(const Shader& shader) {
     m_container.render(shader);
 }
 
+void UIWindow::clampPosition(float screenW, float screenH) {
+    // 1. 完全不能跑到整個軟體視窗上面: Y >= 0.0f
+    // 2. titleBar 最多只能有 50% 跑到軟體視窗下面: Y <= screenH - (0.5f * m_titleBarHeight)
+    float minY = 0.0f;
+    float maxY = screenH - (m_titleBarHeight * 0.5f);
+    m_y = std::clamp(m_y, minY, maxY);
+
+    // 3. titleBar 最多只能有 70% 跑到軟體視窗左右邊外面 (留在畫面內的寬度 >= 30%)
+    float minX = -0.70f * m_width;
+    float maxX = screenW - (0.30f * m_width);
+    m_x = std::clamp(m_x, minX, maxX);
+}
+
 bool UIWindow::handleMouseMove(double x, double y) {
     if (!m_visible) return false;
 
-    // 拖曳中
+    // 拖曳處理
     if (m_isDragging) {
-        setPosition(static_cast<float>(x - m_dragOffsetX),
-                    static_cast<float>(y - m_dragOffsetY));
+        m_x = static_cast<float>(x - m_dragOffsetX);
+        m_y = static_cast<float>(y - m_dragOffsetY);
+
+        GLFWwindow* currentContext = glfwGetCurrentContext();
+        int winW = 800, winH = 600;
+        if (currentContext) {
+            glfwGetFramebufferSize(currentContext, &winW, &winH);
+        }
+
+        clampPosition(static_cast<float>(winW), static_cast<float>(winH));
         return true;
     }
 
-    // 優先詢問關閉按鈕
     if (m_closeButton && m_closeButton->handleMouseMove(x, y)) {
         return true;
     }
 
-    // 詢問內部元件
     if (m_container.handleMouseMove(x, y)) {
         return true;
     }
@@ -145,14 +168,11 @@ bool UIWindow::handleMouseMove(double x, double y) {
 bool UIWindow::handleMouseButton(int button, int action, int mods, double x, double y) {
     if (!m_visible) return false;
 
-    // 1. 關閉按鈕優先判定
     if (m_closeButton && m_closeButton->handleMouseButton(button, action, mods, x, y)) {
         return true;
     }
 
-    // 2. 處理滑鼠按下
     if (action == GLFW_PRESS && button == GLFW_MOUSE_BUTTON_LEFT) {
-        // 點在標題列 -> 開始拖曳
         if (isInsideTitleBar(x, y)) {
             m_isDragging = true;
             m_dragOffsetX = x - m_x;
@@ -160,18 +180,14 @@ bool UIWindow::handleMouseButton(int button, int action, int mods, double x, dou
             return true;
         }
 
-        // 點在內部內容
         if (m_container.handleMouseButton(button, action, mods, x, y)) {
             return true;
         }
 
-        // 點在視窗本體空白處
         if (contains(x, y)) {
             return true;
         }
-    }
-    // 3. 處理滑鼠放開
-    else if (action == GLFW_RELEASE && button == GLFW_MOUSE_BUTTON_LEFT) {
+    } else if (action == GLFW_RELEASE && button == GLFW_MOUSE_BUTTON_LEFT) {
         if (m_isDragging) {
             m_isDragging = false;
             return true;
@@ -187,7 +203,6 @@ bool UIWindow::handleMouseButton(int button, int action, int mods, double x, dou
 bool UIWindow::handleKey(int key, int /*scancode*/, int action, int /*mods*/) {
     if (!m_visible) return false;
 
-    // 聚焦、可見、且按下 ESC 時觸發關閉
     if (m_isFocused && isCloseOnEscEnabled() && key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         setVisible(false);
         return true;
@@ -195,4 +210,3 @@ bool UIWindow::handleKey(int key, int /*scancode*/, int action, int /*mods*/) {
 
     return m_container.handleKey(key, 0, action, 0);
 }
-

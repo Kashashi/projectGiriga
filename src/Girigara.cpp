@@ -4,6 +4,8 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 
+namespace fs = std::filesystem;
+
 Girigara::Girigara(int width, int height, const std::string& title)
 : m_logger(65535),
 m_glfw(),
@@ -40,11 +42,50 @@ void Girigara::initSubsystems() {
         "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
     }, 48);
 
+    // 1. 註冊 Lua C++ 綁定與連接 Console
     ScriptBindings::registerAll(m_scriptEngine.getRawState(), m_logger);
     m_console.setScriptEngine(&m_scriptEngine);
 
+    // 2. ★ 載入 ./assets/sysScripts/ 裡的所有 Lua 系統腳本
+    loadSystemScripts("./assets/sysScripts");
+
     m_sceneManager = std::make_unique<SceneManager>(m_eventBus, m_resources, m_logger);
     m_quadMesh = std::make_unique<QuadMesh>();
+}
+
+void Girigara::loadSystemScripts(const std::string& directoryPath) {
+    fs::path dir(directoryPath);
+
+    if (!fs::exists(dir) || !fs::is_directory(dir)) {
+        m_logger.warn("[Script] 找不到系統腳本資料夾: " + directoryPath);
+        return;
+    }
+
+    m_logger.info("[Script] 開始載入系統腳本目錄: " + directoryPath);
+
+    // 遞迴掃描目錄下所有檔案
+    for (const auto& entry : fs::recursive_directory_iterator(dir)) {
+        if (entry.is_regular_file() && entry.path().extension() == ".lua") {
+            std::string filePath = entry.path().string();
+            // 使用去除副檔名的檔名作為資源名稱，例如 "debug.lua" -> "debug"
+            std::string scriptName = entry.path().stem().string();
+
+            try {
+                // 由 ResourceManager 載入並快取[cite: 14]
+                m_resources.loadScript(scriptName, filePath);
+                const auto& scriptRes = m_resources.getScript(scriptName);
+
+                // 立即由 ScriptEngine 執行一次，將全域函式註冊進虛擬機
+                if (m_scriptEngine.executeResource(scriptRes)) {
+                    m_logger.info("[Script] 已註冊系統腳本: " + scriptName + " (" + filePath + ")");
+                } else {
+                    m_logger.error("[Script] 執行腳本出錯: " + filePath);
+                }
+            } catch (const std::exception& e) {
+                m_logger.error(std::string("[Script] 載入例外: ") + e.what());
+            }
+        }
+    }
 }
 
 void Girigara::setupUI() {
@@ -65,33 +106,6 @@ void Girigara::setupUI() {
                                                        m_resources
     );
     m_inGameConsole->setName("InGameConsole");
-
-    // 2. 建立 Lua 飄浮視窗
-    auto titleLabel = std::make_unique<UIText>(0.0f, 0.0f, *m_defaultFont, U"全域主控台 (Lua 驅動)", 20);
-    titleLabel->setColor(1.0f, 0.85f, 0.3f, 1.0f);
-
-    m_globalConsoleWindow = globalUI.emplaceChild<UIWindow>(
-        200.0f, 150.0f, 400.0f, 260.0f,
-        std::move(titleLabel)
-    );
-    m_globalConsoleWindow->setCloseOnEsc(true);
-    m_globalConsoleWindow->setVisible(false);
-    m_globalConsoleWindow->setName("GlobalConsole");
-
-    auto* statusText = m_globalConsoleWindow->emplaceContent<UIText>(
-        20.0f, 60.0f, *m_defaultFont, U"全域疊加層運作正常", 24
-    );
-    statusText->setColor(0.2f, 0.9f, 0.4f, 1.0f);
-
-    try {
-        m_resources.loadScript("console_float", std::vector<std::string>{
-            "./assets/scripts/console_float.lua",
-            "../assets/scripts/console_float.lua"
-        });
-        m_scriptEngine.executeResource(m_resources.getScript("console_float"));
-    } catch (const std::exception& e) {
-        m_logger.warn(std::string("腳本載入略過: ") + e.what());
-    }
 }
 
 void Girigara::setupShortcuts() {

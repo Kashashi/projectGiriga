@@ -16,6 +16,26 @@ SceneManager::~SceneManager() {
 }
 
 void SceneManager::registerEventHandlers() {
+    // ★ 關鍵：視窗大小改變事件集中管理
+    m_bus.subscribe<WindowResizeEvent>([this](WindowResizeEvent& e) {
+        float newW = static_cast<float>(e.width);
+        float newH = static_cast<float>(e.height);
+
+        // 1. 更新全域 UI 畫布大小，並校正全域飄浮視窗
+        m_globalUI.setSize(newW, newH);
+        for (auto& child : m_globalUI.getChildren()) {
+            if (auto* window = dynamic_cast<UIWindow*>(child.get())) {
+                window->clampPosition(newW, newH);
+            }
+        }
+
+        // 2. 轉發給當前場景，更新場景根容器大小，並校正場景專屬視窗
+        if (m_currentScene) {
+            m_currentScene->onWindowResize(newW, newH);
+        }
+    });
+
+    // 原有的 KeyEvent, MouseMovedEvent, MouseButtonEvent 保持不變...[cite: 37]
     m_bus.subscribe<KeyEvent>([this](KeyEvent& e) {
         if (e.isHandled) return;
         if (m_globalUI.handleKey(e.key, e.scancode, e.action, e.mods)) {

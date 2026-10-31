@@ -10,6 +10,14 @@ void GameScene::onEnter() {
 
     FontLoader& font = m_resources.getFont("default");
 
+    // 放置一個在父容器水平 50.0%、垂直 80.0% 的按鈕
+    auto* btn = m_uiRoot.emplaceChild<UIButton>(0.0f, 0.0f, 200.0f, 50.0f);
+    btn->setPositionPercent(50.0f, 80.0f);
+
+    // 精確到 0.01%
+    auto* text = m_uiRoot.emplaceChild<UIText>(0.0f, 0.0f, font, U"精確座標");
+    text->setPositionPercent(12.34f, 56.78f);
+
     // 遊戲場景專屬的對話視窗
     m_consoleWindow = m_uiRoot.emplaceChild<UIWindow>(
         180.0f, 100.0f, 440.0f, 260.0f,

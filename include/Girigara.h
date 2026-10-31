@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <string>
+#include <functional>
 
 #include <System/LoggerSystem.h>
 #include <System/ConsoleSystem.h>
@@ -17,6 +18,7 @@
 #include <Shader/Shader.h>
 #include <UI/UIConsole.h>
 #include <UI/UIWindow.h>
+#include <Scene/LuaScene.h>
 
 class Girigara {
 public:
@@ -37,9 +39,18 @@ public:
     void switchScene(Args&&... args) {
         m_sceneManager->switchScene<T>(std::forward<Args>(args)...);
     }
+    // 2. 新增便捷介面：一行指令直接切換至指定的 Lua 腳本場景
+    void switchLuaScene(const std::string& scriptResourceName) {
+        // SceneManager 會自動補齊前 4 個參數，這裡只需傳入 ScriptEngine 和 資源名稱
+        m_sceneManager->switchScene<LuaScene>(
+            std::ref(m_scriptEngine),
+                                              scriptResourceName
+        );
+    }
 
 private:
     void initSubsystems();
+    void loadSystemScripts(const std::string& directoryPath); // ★ 掃描並載入資料夾內所有腳本
     void setupUI();
     void setupShortcuts();
 

@@ -40,7 +40,7 @@ void UIText::updateMetrics() {
         return;
     }
 
-    // 取得 FontLoader 的原生烘焙基準字號（例如 48）
+    // 1. 取得 FontLoader 的原生烘焙基準字號
     unsigned int baseSize = m_font.getFontSize();
     if (m_targetFontSize > 0 && baseSize > 0) {
         m_scale = static_cast<float>(m_targetFontSize) / static_cast<float>(baseSize);
@@ -48,9 +48,29 @@ void UIText::updateMetrics() {
         m_scale = 1.0f;
     }
 
-    // 讓 UIElement 的 AABB 包圍盒尺寸同步乘上縮放比
-    m_width  = static_cast<float>(m_texture->getWidth()) * m_scale;
-    m_height = static_cast<float>(m_texture->getHeight()) * m_scale;
+    float baseW = static_cast<float>(m_texture->getWidth()) * m_scale;
+    float baseH = static_cast<float>(m_texture->getHeight()) * m_scale;
+
+    // 2. ★ 尺寸限制：如果設有父節點且字體超出父節點可用空間，強制縮小
+    if (m_parent && m_parent->getWidth() > 0.0f && m_parent->getHeight() > 0.0f) {
+        float maxAvailableW = m_parent->getWidth();
+        float maxAvailableH = m_parent->getHeight();
+
+        float shrinkFactor = 1.0f;
+        if (baseW > maxAvailableW) {
+            shrinkFactor = std::min(shrinkFactor, maxAvailableW / baseW);
+        }
+        if (baseH > maxAvailableH) {
+            shrinkFactor = std::min(shrinkFactor, maxAvailableH / baseH);
+        }
+
+        m_scale *= shrinkFactor;
+        m_width = baseW * shrinkFactor;
+        m_height = baseH * shrinkFactor;
+    } else {
+        m_width = baseW;
+        m_height = baseH;
+    }
 }
 
 void UIText::rebake() {
@@ -72,12 +92,17 @@ void UIText::render(const Shader& shader) {
     glProgramUniform1i(shader.getID(), LOC_IS_TEXT, 1);
     glProgramUniform4fv(shader.getID(), LOC_UI_COLOR, 1, m_color);
 
-    // 套用包含縮放後的 Model 矩陣
+    // ★ 關鍵修正：必須使用全局座標，文字才會跟著父容器（視窗）平移！
+    float gw = getLocalWidth();
+    float gh = getLocalHeight();
+    float gx = getGlobalX();
+    float gy = getGlobalY();
+
     float model[16] = {
-        m_width, 0.0f,     0.0f, 0.0f,
-        0.0f,    m_height, 0.0f, 0.0f,
-        0.0f,    0.0f,     1.0f, 0.0f,
-        m_x,     m_y,      0.0f, 1.0f
+        gw,   0.0f, 0.0f, 0.0f,
+        0.0f, gh,   0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        gx,   gy,   0.0f, 1.0f
     };
     glProgramUniformMatrix4fv(shader.getID(), LOC_MODEL, 1, GL_FALSE, model);
 

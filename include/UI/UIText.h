@@ -28,6 +28,8 @@ public:
     bool handleMouseMove(double x, double y) override;
     bool handleMouseButton(int button, int action, int mods, double x, double y) override;
 
+    void fitToParent();
+
 private:
     const FontLoader& m_font;
     std::u32string m_text;

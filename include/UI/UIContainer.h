@@ -15,6 +15,7 @@ public:
     template <typename T, typename... Args>
     T* emplaceChild(Args&&... args) {
         auto child = std::make_unique<T>(std::forward<Args>(args)...);
+        child->setParent(this); // ★ 補上這行，確保 parent 樹狀鏈條完整！
         T* ptr = child.get();
         m_children.push_back(std::move(child));
         return ptr;
@@ -36,6 +37,8 @@ public:
     bool handleMouseMove(double x, double y) override;
     bool handleMouseButton(int button, int action, int mods, double x, double y) override;
     bool handleKey(int key, int scancode, int action, int mods) override;
+    // ★ 取得子節點列表，供視窗縮放時遍歷校正
+    const std::vector<std::unique_ptr<UIElement>>& getChildren() const { return m_children; }
 
 private:
     std::vector<std::unique_ptr<UIElement>> m_children;

@@ -12,6 +12,14 @@ void MainMenuScene::onEnter() {
 
     FontLoader& font = m_resources.getFont("default");
 
+    // 放置一個在父容器水平 50.0%、垂直 80.0% 的按鈕
+    auto* btn = m_uiRoot.emplaceChild<UIButton>(0.0f, 0.0f, 200.0f, 50.0f);
+    btn->setPositionPercent(80.0f, 95.0f);
+
+    // 精確到 0.01%
+    auto* text = m_uiRoot.emplaceChild<UIText>(0.0f, 0.0f, font, U"精確座標");
+    text->setPositionPercent(80.0f, 90.0f);
+
     // 場景專屬標題
     auto* title = m_uiRoot.emplaceChild<UIText>(300.0f, 150.0f, font, U"主選單");
     title->setColor(0.95f, 0.85f, 0.20f, 1.0f);

@@ -8,12 +8,14 @@
 #include <UI/UIRegistry.h>
 #include <string>
 
+enum class UIUnit {
+    Pixels,  // 固定像素
+    Percent  // 百分比 (100.0f 代表 100%, 0.01f 代表 0.01%)
+};
+
 class UIElement : public Core::Identifiable {
 public:
-    virtual ~UIElement() {
-        // 物件銷毀時自動脫離全域註冊表
-        UIRegistry::getInstance().unregisterElement(m_uuid, m_name);
-    }
+    virtual ~UIElement();
 
     UIElement(const UIElement&) = delete;
     UIElement& operator=(const UIElement&) = delete;
@@ -21,11 +23,7 @@ public:
     UIElement& operator=(UIElement&&) noexcept = default;
 
     // 覆寫 setName 以同步更新 UIRegistry 的名稱映射
-    void setName(const std::string& name) override {
-        UIRegistry::getInstance().unregisterElement(0, m_name);
-        Identifiable::setName(name);
-        UIRegistry::getInstance().registerElement(m_uuid, m_name, this);
-    }
+    void setName(const std::string& name) override;
 
     virtual void render(const Shader& shader) = 0;
     virtual bool handleMouseMove(double x, double y) = 0;
@@ -39,45 +37,66 @@ public:
     virtual void update(float dt);
     void setScriptUpdate(LuaRef callback);
 
-    void setVisible(bool visible) {
-        m_visible = visible;
-        if (!visible) m_isFocused = false;
-    }
+    void setVisible(bool visible);
     bool isVisible() const { return m_visible; }
 
-    void setPosition(float x, float y) { m_x = x; m_y = y; }
-    void setSize(float width, float height) { m_width = width; m_height = height; }
+    // 像素座標與大小設定
+    void setPosition(float x, float y);
+    void setSize(float width, float height);
 
-    float getX() const { return m_x; }
-    float getY() const { return m_y; }
-    float getWidth() const { return m_width; }
-    float getHeight() const { return m_height; }
+    // 百分比座標與大小設定 (精確支援小數點如 0.01f 代表 0.01%)
+    void setPositionPercent(float xPercent, float yPercent);
+    void setSizePercent(float wPercent, float hPercent);
+
+    // 取得原始數值
+    float getRawX() const { return m_x; }
+    float getRawY() const { return m_y; }
+    float getRawWidth() const { return m_width; }
+    float getRawHeight() const { return m_height; }
+
+    UIUnit getPositionUnit() const { return m_posUnit; }
+    UIUnit getSizeUnit() const { return m_sizeUnit; }
+
+    // 依據單位換算後的局部像素寬高與座標
+    virtual float getLocalWidth() const;
+    virtual float getLocalHeight() const;
+    float getLocalX() const;
+    float getLocalY() const;
+
+    // 沿用原介面名稱：回傳換算後的局部像素值
+    float getX() const { return getLocalX(); }
+    float getY() const { return getLocalY(); }
+    float getWidth() const { return getLocalWidth(); }
+    float getHeight() const { return getLocalHeight(); }
 
     virtual void setFocused(bool focused) { m_isFocused = focused; }
     bool isFocused() const { return m_isFocused; }
 
-    virtual bool contains(double x, double y) const {
-        return (x >= m_x && x <= m_x + m_width &&
-        y >= m_y && y <= m_y + m_height);
-    }
+    void setParent(UIElement* parent) { m_parent = parent; }
+    UIElement* getParent() const { return m_parent; }
+
+    // 遞迴取得全局絕對座標
+    float getGlobalX() const;
+    float getGlobalY() const;
+
+    // 命中測試
+    virtual bool contains(double x, double y) const;
 
 protected:
-    UIElement() : Core::Identifiable() {
-        UIRegistry::getInstance().registerElement(m_uuid, "", this);
-    }
-
-    UIElement(float x, float y, float width, float height, std::string name = "")
-    : Core::Identifiable(std::move(name)),
-    m_x(x), m_y(y), m_width(width), m_height(height) {
-        UIRegistry::getInstance().registerElement(m_uuid, m_name, this);
-    }
+    UIElement();
+    UIElement(float x, float y, float width, float height, std::string name = "");
 
     virtual void onUpdate(float dt);
 
+    UIElement* m_parent = nullptr;
     float m_x = 0.0f;
     float m_y = 0.0f;
     float m_width = 0.0f;
     float m_height = 0.0f;
+
+    UIUnit m_posUnit  = UIUnit::Pixels;
+    UIUnit m_sizeUnit = UIUnit::Pixels;
+
     bool m_visible = true;
     bool m_isFocused = false;
 

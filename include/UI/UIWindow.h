@@ -23,10 +23,9 @@ public:
 
     template <typename T, typename... Args>
     T* emplaceContent(float relX, float relY, Args&&... args) {
-        auto child = std::make_unique<T>(m_x + relX, m_y + relY, std::forward<Args>(args)...);
+        auto child = std::make_unique<T>(relX, relY, std::forward<Args>(args)...);
         T* ptr = child.get();
-        m_contentElements.push_back({ptr, relX, relY});
-        m_container.addChild(std::move(child));
+        m_container.addChild(std::move(child)); // 由 addChild 自動完成 child->setParent(&m_container)[cite: 25]
         return ptr;
     }
 
@@ -46,6 +45,8 @@ public:
     bool handleMouseButton(int button, int action, int mods, double x, double y) override;
     bool handleKey(int key, int scancode, int action, int mods) override;
     bool isDragging() const { return m_isDragging; }
+    // ★ 主動將視窗位置約束在螢幕可見區域內
+    void clampPosition(float screenW, float screenH);
 
 private:
     float m_titleBarHeight = 35.0f;
@@ -61,15 +62,7 @@ private:
     std::unique_ptr<UIButton> m_closeButton = nullptr;
     UIContainer m_container;
 
-    struct ChildRef {
-        UIElement* element;
-        float relX;
-        float relY;
-    };
-    std::vector<ChildRef> m_contentElements;
-
     bool isInsideTitleBar(double x, double y) const;
-    void updateChildrenPositions();
     void initCloseButton();
 };
 

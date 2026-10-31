@@ -3,6 +3,7 @@
 
 void UIContainer::addChild(std::unique_ptr<UIElement> child) {
     if (child) {
+        child->setParent(this); // ★ 設置父節點
         m_children.push_back(std::move(child));
     }
 }
