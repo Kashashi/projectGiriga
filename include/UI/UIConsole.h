@@ -77,12 +77,23 @@ class UIConsole : public UIContainer {
 public:
     UIConsole(float x, float y, float width, float height,
               FontLoader& font, EventBus& eventBus,
-              ConsoleSystem& consoleSystem, LoggerSystem& logger)
+              ConsoleSystem& consoleSystem, LoggerSystem& logger,
+              ResourceManager& resourceManager) // ★ 加入 ResourceManager
     : UIContainer(x, y, width, height),
     m_font(font),
     m_eventBus(eventBus),
     m_consoleSystem(consoleSystem),
-    m_logger(logger) {
+    m_logger(logger),
+    m_resourceManager(resourceManager),
+    // ★ 透過 ResourceManager 載入或取得背景 Shader
+    m_bgShader(m_resourceManager.loadShader(
+        "ConsoleBackground",
+        "./assets/shaders/console_bg.vert",
+        "./assets/shaders/console_bg.frag"
+    )) {
+
+        // 建立 OpenGL 4.6 Core Profile 繪製無 VBO 三角形時必需的空 VAO
+        glGenVertexArrays(1, &m_dummyVAO);
 
         setVisible(false);
 
@@ -100,6 +111,13 @@ public:
         bindEvents();
     }
 
+    ~UIConsole() override {
+        if (m_dummyVAO != 0) {
+            glDeleteVertexArrays(1, &m_dummyVAO);
+            m_dummyVAO = 0;
+        }
+    }
+
     void onResize(float newWidth, float newHeight) {
         m_width = newWidth;
         m_height = newHeight;
@@ -110,6 +128,11 @@ public:
 
     void update(float dt) override {
         UIContainer::update(dt);
+
+        // 可見狀態下累加計時，提供給 Shader 作為泡泡飄動參數
+        if (isVisible()) {
+            m_elapsedTime += dt;
+        }
 
         if (m_logger.isDirty()) {
             refreshLogs();
@@ -127,6 +150,42 @@ public:
         if (!isVisible()) return false;
         UIContainer::handleMouseButton(button, action, mods, x, y);
         return true; // Console 開啟時，攔截滑鼠點擊
+    }
+    void render(const Shader& uiShader) override {
+        if (!isVisible()) return;
+
+        // 1. 啟用半透明混合
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        // 2. 切換為背景專用 Shader
+        m_bgShader.use();
+        GLuint bgProg = m_bgShader.getID();
+
+        // ★ 關鍵修復：從已經持有正確正交投影的 uiShader 中讀出 projection 矩陣 (location 0)
+        float orthoProj[16];
+        glGetUniformfv(uiShader.getID(), 0, orthoProj);
+        glProgramUniformMatrix4fv(bgProg, 0, 1, GL_FALSE, orthoProj); // location = 0: projection
+
+        // 設定 Console 鋪滿畫面的 Model 矩陣 (location = 1)
+        float model[16] = {
+            m_width, 0.0f,     0.0f, 0.0f,
+            0.0f,    m_height, 0.0f, 0.0f,
+            0.0f,    0.0f,     1.0f, 0.0f,
+            m_x,     m_y,      0.0f, 1.0f
+        };
+        glProgramUniformMatrix4fv(bgProg, 1, 1, GL_FALSE, model);     // location = 1: model
+
+        // 設定時間與解析度
+        glProgramUniform1f(bgProg, 2, m_elapsedTime);                 // location = 2: uTime
+        glProgramUniform2f(bgProg, 3, m_width, m_height);             // location = 3: uResolution
+
+        // 繪製背景矩形（注意：主迴圈已綁定 m_quadMesh->getVAO()，直接畫 6 個頂點即可）
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        // 3. 畫完背景後，切換回原本的 UI Shader 繪製 Console 的文字與 Prompt
+        uiShader.use();
+        UIContainer::render(uiShader);
     }
 
 private:
@@ -321,6 +380,11 @@ private:
     EventBus& m_eventBus;
     ConsoleSystem& m_consoleSystem;
     LoggerSystem& m_logger;
+    ResourceManager& m_resourceManager; // ★ 引用 ResourceManager
+
+    Shader& m_bgShader;                 // ★ 背景 Shader 引用
+    GLuint m_dummyVAO{0};               // ★ 空 VAO
+    float m_elapsedTime{0.0f};          // ★ 計時累積量
 
     int m_fontSize{18};
     float m_lineHeight{24.0f};

@@ -1,3 +1,4 @@
+#!/usr/bin/env xdg-open
 [Desktop Entry]
 Name=Project Girigara
 Comment=An OpenGL C++23 GUI & Game Engine

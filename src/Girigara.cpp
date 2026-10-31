@@ -61,7 +61,8 @@ void Girigara::setupUI() {
                                                        *m_defaultFont,
                                                        m_eventBus,
                                                        m_console,
-                                                       m_logger
+                                                       m_logger,
+                                                       m_resources
     );
     m_inGameConsole->setName("InGameConsole");
 
